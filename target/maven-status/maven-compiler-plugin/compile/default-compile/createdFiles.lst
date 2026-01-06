@@ -1,7 +1,9 @@
+com\example\valuation\listener\PositionEventListener.class
 com\example\valuation\service\ValuationService.class
 com\example\valuation\controller\ValuationController.class
 com\example\valuation\service\PositionService.class
 com\example\valuation\entity\Position$PositionBuilder.class
+com\example\valuation\config\AsyncConfig.class
 com\example\valuation\config\JacksonConfig.class
 com\example\valuation\dao\PositionRepository.class
 com\example\valuation\config\RedisConfig.class
@@ -25,5 +27,6 @@ com\example\valuation\dto\NavRecordDTO.class
 com\example\valuation\entity\Position.class
 com\example\valuation\service\CentralPubListener.class
 com\example\valuation\fileservice\DailyFileScheduler.class
+com\example\valuation\event\ConfirmedTradeEvent.class
 com\example\valuation\entity\PositionHistory.class
 com\example\valuation\service\StatusTrackingService.class

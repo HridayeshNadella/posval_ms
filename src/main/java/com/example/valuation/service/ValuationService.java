@@ -6,6 +6,7 @@ import com.example.valuation.entity.ValuationEntity;
 import com.example.valuation.model.*;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +20,7 @@ import com.example.valuation.dto.CanonicalTradeDTO;
 import com.example.valuation.dto.NavRecordDTO;
 import com.example.valuation.entity.ValuationEntity;
 import com.example.valuation.entity.ValuationStatus;
+import com.example.valuation.event.ConfirmedTradeEvent;
 import com.example.valuation.dao.ValuationDao;
 import com.example.valuation.service.PositionService;
 
@@ -42,45 +44,97 @@ public class ValuationService {
     @Autowired
     private PositionService positionService;
 
-
     /* ================= SINGLE ================= */
+
+    @Autowired
+    private ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public ValuationEntity valuation(CanonicalTradeDTO trade) {
+
         ValuationEntity entity = buildEntity(trade);
-        //positionService.applyConfirmedTrade(entity);
+        valuationDao.save(entity);
+
         if ("CONFIRMED".equalsIgnoreCase(entity.getConfirmedStatus())) {
-                positionService.applyConfirmedTrade(entity);
-            }
-        return valuationDao.save(entity);
-        
+            eventPublisher.publishEvent(
+                    new ConfirmedTradeEvent(entity.getId()));
+        }
+
+        return entity;
     }
+
+    // @Transactional
+    // public ValuationEntity valuation(CanonicalTradeDTO trade) {
+    // ValuationEntity entity = buildEntity(trade);
+    // // positionService.applyConfirmedTrade(entity);
+    // if ("CONFIRMED".equalsIgnoreCase(entity.getConfirmedStatus())) {
+    // positionService.applyConfirmedTrade(entity);
+    // }
+    // return valuationDao.save(entity);
+
+    // }
 
     /* ================= BATCH ================= */
 
+    // @Transactional
+    // public List<ValuationEntity> valuationBatch(List<CanonicalTradeDTO> trades) {
+
+    // List<ValuationEntity> entities = new ArrayList<>();
+
+    // logger.info("starting batch");
+
+    // for (CanonicalTradeDTO trade : trades) {
+    // entities.add(buildEntity(trade));
+    // }
+
+    // valuationDao.saveAll(entities);
+    // valuationDao.flush();
+
+    // for (ValuationEntity entity : entities) {
+    // if ("CONFIRMED".equalsIgnoreCase(entity.getConfirmedStatus())) {
+    // positionService.applyConfirmedTrade(entity);
+    // }
+    // }
+
+    // return entities;
+    // }
     @Transactional
     public List<ValuationEntity> valuationBatch(List<CanonicalTradeDTO> trades) {
 
         List<ValuationEntity> entities = new ArrayList<>();
 
-        logger.info("starting batch");
-
         for (CanonicalTradeDTO trade : trades) {
             entities.add(buildEntity(trade));
         }
 
-        valuationDao.saveAll(entities);
-        valuationDao.flush();
-
-        for (ValuationEntity entity : entities) {
-            if ("CONFIRMED".equalsIgnoreCase(entity.getConfirmedStatus())) {
-                positionService.applyConfirmedTrade(entity);
-            }
+        logger.info("valuationBatch: preparing to save {} entities", entities.size());
+        for (ValuationEntity e : entities) {
+            logger.debug("valuationBatch: entity before save id={} txn={} status={} confirmedStatus={}",
+                    e.getId(), e.getTransactionId(), e.getStatus(), e.getConfirmedStatus());
         }
 
-        return entities;
-    }
+        try {
+            valuationDao.saveAll(entities);
+            valuationDao.flush();
 
+            logger.info("valuationBatch: saved {} entities", entities.size());
+            for (ValuationEntity e : entities) {
+                logger.debug("valuationBatch: entity after save id={} status={}", e.getId(), e.getStatus());
+            }
+
+            for (ValuationEntity entity : entities) {
+                if ("CONFIRMED".equalsIgnoreCase(entity.getConfirmedStatus())) {
+                    eventPublisher.publishEvent(
+                            new ConfirmedTradeEvent(entity.getId()));
+                }
+            }
+
+            return entities;
+        } catch (Exception ex) {
+            logger.error("valuationBatch: failed to save entities", ex);
+            throw ex;
+        }
+    }
 
     /* ================= CORE LOGIC ================= */
 
